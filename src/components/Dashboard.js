@@ -1,14 +1,54 @@
 import React, { Component } from "react";
+import axios from "axios";
+
 import Loading from "components/Loading";
 import Panel from "components/Panel";
 import classnames from "classnames";
 
 class Dashboard extends Component {
   state = {
-    loading: false,
+    loading: true,
+    focused: null,
+    days: [],
+    appointments: {},
+    interviewers: {},
   };
+
+  selectPanel(id) {
+    this.setState((previousState) => ({
+      focused: previousState.focused !== null ? null : id,
+    }));
+  }
+
+  componentDidMount() {
+    const focused = JSON.parse(localStorage.getItem("focused"));
+    Promise.all([
+      axios.get("/api/days"),
+      axios.get("/api/appointments"),
+      axios.get("/api/interviewers"),
+    ]).then(([days, appointments, interviewers]) => {
+      this.setState({
+        loading: false,
+        days: days.data,
+        appointments: appointments.data,
+        interviewers: interviewers.data,
+      });
+    });
+
+    if (focused) {
+      this.setState({ focused });
+    }
+  }
+
+  componentDidUpdate(previousProps, previousState) {
+    if (previousState.focused !== this.state.focused) {
+      localStorage.setItem("focused", JSON.stringify(this.state.focused));
+    }
+  }
   render() {
-    const dashboardClasses = classnames("dashboard");
+    const dashboardClasses = classnames("dashboard", {
+      "dashboard--focused": this.state.focused,
+    });
 
     const data = [
       {
@@ -37,9 +77,20 @@ class Dashboard extends Component {
       return <Loading />;
     }
 
-    const panels = data.map((item) => (
-      <Panel key={item.id} id={item.id} label={item.label} value={item.value} />
-    ));
+    const panels = data
+      .filter(
+        (panel) =>
+          this.state.focused === null || this.state.focused === panel.id
+      )
+      .map((item) => (
+        <Panel
+          key={item.id}
+          id={item.id}
+          label={item.label}
+          value={item.value}
+          onSelect={(e) => this.selectPanel(item.id)}
+        />
+      ));
 
     return <main className={dashboardClasses}>{panels}</main>;
   }
